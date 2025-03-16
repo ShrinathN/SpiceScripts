@@ -8,14 +8,17 @@ parser = argparse.ArgumentParser(description="This script will convert any given
 parser.add_argument("input_file", type=str, help="Input file name")
 
 #optional functionality
-parser.add_argument("-O", "--output", type=str, help="Output file name", required=False)
 parser.add_argument("-s", "--start_row", type=int, help="Row where the data starts in the csv file (default = 1)", required=False)
 parser.add_argument("-d", "--data", type=int, help="Data column number (default=1)", required=False)
 parser.add_argument("-t", "--timestamp", type=int, help="Timestamp column number (default=2)", required=False)
 parser.add_argument("-dm", "--data_multiplier", type=str, help="Data multiplier (Giga = 1e12, Mega = 1e9, Milli = 1e-3, No multiplier = 1e0) (default = no multiplier)", required=False)
 parser.add_argument("-tm", "--timestamp_multiplier", type=str, help="Timestamp multiplier (No multiplier = 1e0, Milli = 1e-3, Micro = 1e-6) (default = no multiplier)", required=False)
+parser.add_argument("-do", "--data_output_multiplier", type=str, help="Data output multiplier (Giga = 1e12, Mega = 1e9, Milli = 1e-3, No multiplier = 1e0) (default = no multiplier)", required=False)
+parser.add_argument("-to", "--timestamp_output_multiplier", type=str, help="Timestamp output multiplier (No multiplier = 1e0, Milli = 1e-3, Micro = 1e-6) (default = no multiplier)", required=False)
 parser.add_argument("-da", "--data_append", type=str, help="String to append after each data sample. Can be used to add a unit (default = nothing)", required=False)
 parser.add_argument("-ta", "--time_append", type=str, help="String to append after each timestamp. Can be used to add a unit (default = nothing)", required=False)
+parser.add_argument("-rd", "--round_data", action="store_true", help="Round data (default = no rounding)", required=False)
+parser.add_argument("-rt", "--round_timestamp", action="store_true", help="Round timestamp (default = no rounding)", required=False)
 
 parser.add_argument("-of", "--offset", type=str, help="Reset time to start from a given timestamp. Unit is seconds (default = 0s)", required=False)
 # parser.add_argument("-st", "--starting_time", type=str, help="New starting time. Unit is seconds (default = 0s)", required=False)
@@ -48,7 +51,7 @@ if(args.timestamp is not None):
 #getting multiplier for data
 data_multiplier = 1e0
 if(args.data_multiplier is not None):
-    data_multiplier = float(eval(args.data_multiplier))
+    data_multiplier = eval(args.data_multiplier)
 
 #getting multiplier for timestamp
 timestamp_multiplier = 1e0
@@ -75,10 +78,26 @@ timestamp_append = ""
 if(args.time_append is not None):
     timestamp_append = args.time_append
 
-output = ""
-if(args.output is not None):
-    output_buffer = ""
-    output = args.output
+#data output multiplier
+data_output_multiplier = 1e0
+if(args.data_output_multiplier is not None):
+    data_output_multiplier = eval(args.data_output_multiplier)
+
+#timestamp output multiplier
+timestamp_output_multiplier = 1e0
+if(args.timestamp_output_multiplier is not None):
+    timestamp_output_multiplier = eval(args.timestamp_output_multiplier)
+
+#round_data
+round_data = False
+if(args.round_data is not None):
+    round_data = args.round_data
+
+#round_timestamp
+round_timestamp = False
+if(args.round_timestamp is not None):
+    round_timestamp = args.round_timestamp
+
 
 #looping through all the data and copying to internal buffer
 data_buffer = []
@@ -92,19 +111,20 @@ for i in range(starting_row, len(data_rows)):
 #outputting the data
 for i in range(0, len(data_buffer)):
     current_data = data_buffer[i]
+
     if(offset != 0):
-        temp_timestamp = str((current_data["timestamp"] - data_buffer[0]["timestamp"]) + offset)
+        temp_timestamp = (((current_data["timestamp"] - data_buffer[0]["timestamp"])) + offset) * (1 / timestamp_output_multiplier)
     else:
-        temp_timestamp = str(current_data["timestamp"])
+        temp_timestamp = current_data["timestamp"] * (1 / timestamp_output_multiplier)
 
-
-    if(output == ""):
-        print(f"{temp_timestamp}{timestamp_append} {str(current_data['data'])}{data_append}")
+    if(round_timestamp):
+        temp_timestamp = round(temp_timestamp)
+    
+    #calculating data field
+    if(round_data):
+        temp_data = round(current_data['data'] * (1 / data_output_multiplier))
     else:
-        output_buffer += f"{temp_timestamp}{timestamp_append} {str(current_data['data'])}{data_append}\n"
+        temp_data = (current_data['data'] * (1 / data_output_multiplier))
 
-if(output != ""):
-    f = open(output, "w")
-    f.write(output_buffer)
-    f.close()
-exit(0)
+    #output data to stdout
+    print(f"{temp_timestamp:.12f}{timestamp_append} {temp_data:.12f}{data_append}")
